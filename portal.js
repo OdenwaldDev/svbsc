@@ -176,6 +176,10 @@
     const TG={krank:'Krank',verletzt:'Verletzt',urlaub:'Urlaub',schule:'Schule',privat:'Privat'};
     const TA={training:'Training',spiel:'Spiel',turnier:'Turnier',sonst:'Termin'};
     let T=null, offen=null, meine=[]; try{ meine=JSON.parse(ls.get('tp_kids')||'[]'); }catch(e){}
+    const DS=`<details class="card" style="margin-top:14px"><summary style="cursor:pointer;font-weight:700">Datenschutz: was hier gespeichert wird</summary>
+      <p class="note" style="line-height:1.55">Auf dieser Seite steht nur der Vorname und der erste Buchstabe des Nachnamens. Gespeichert wird nur, ob dein Kind kommt, und auf Wunsch ein kurzer Grund. Keine Telefonnummern, keine E-Mail-Adressen, keine Fotos, kein Konto, keine Werbung.</p>
+      <p class="note" style="line-height:1.55">Sehen können das nur die Trainer und Betreuer der Mannschaft und der Vorstand. Nichts wird weitergegeben. Welches Kind deins ist, merkt sich nur dieses Handy.</p>
+      <p class="note" style="line-height:1.55">Antworten werden nach 180 Tagen automatisch gelöscht. Sofort löschen lassen oder nicht mitmachen: kurz dem Trainer Bescheid sagen.</p></details>`;
     const h=document.querySelector('header h1'), hs=document.querySelector('header p'), ft=document.querySelector('footer');
     if(ft)ft.textContent='Nur für die Mannschaft · keine Anmeldung, keine Nummern, keine Werbung';
     async function laden(){
@@ -187,7 +191,7 @@
       if(h)h.textContent=T.team.kurz; if(hs)hs.textContent=T.team.name+' · Zu- und Absagen';
       document.title=T.team.name+' · SV/BSC Mörlenbach';
       const K=T.kinder||[], A=T.antworten||[], mk=new Set(meine.filter(id=>K.some(k=>k.id===id)));
-      if(!T.termine.length){ app.innerHTML='<div class="card empty"><h2>Gerade nichts offen</h2><p class="note">In den nächsten zwei Wochen steht kein Termin an.</p></div>'; return; }
+      if(!T.termine.length){ app.innerHTML='<div class="card empty"><h2>Gerade nichts offen</h2><p class="note">In den nächsten zwei Wochen steht kein Termin an.</p></div>'+DS; return; }
       app.innerHTML=`<p class="note" style="margin:0 0 12px">Tippe auf den Namen deines Kindes und sag zu oder ab. Das Handy merkt sich dein Kind.</p>`+T.termine.map(t=>{
         const R=A.filter(a=>a.termin===t.id), ja=R.filter(a=>a.antwort==='ja').length, nein=R.filter(a=>a.antwort==='nein').length, vl=R.filter(a=>a.antwort==='vielleicht').length;
         const an=id=>(R.find(a=>a.spieler===id)||{}).antwort||'';
@@ -196,7 +200,7 @@
           <h2>${esc(wd(t.datum))}${t.zeit?' · '+esc(t.zeit):''}</h2><div class="meta">${[t.gegner?(t.heim===false?'bei ':'gegen ')+t.gegner:'',t.titel,t.ort].filter(Boolean).map(esc).join(' · ')}</div>
           <div class="cnt"><span><b>${ja}</b> dabei</span><span><b>${nein}</b> nicht dabei</span>${vl?`<span><b>${vl}</b> vielleicht</span>`:''}<span><b>${K.length-R.length}</b> offen</span></div>
           <div class="who">${kids.map(k=>{ const a=an(k.id); return `<button data-t="${esc(t.id)}" data-k="${esc(k.id)}" style="padding:8px 11px;border-radius:999px;font-size:13.5px;font-weight:${mk.has(k.id)?800:600};border:1px solid ${mk.has(k.id)?'rgba(91,155,255,.6)':'var(--line)'}" class="${a==='ja'?'ok':a==='nein'?'bad':a?'mid':''}">${a==='ja'?'✓ ':a==='nein'?'✗ ':a?'? ':''}${esc(k.name)}</button>`; }).join('')}</div>
-          ${offen&&offen.t===t.id?frage(t,K.find(k=>k.id===offen.k),R.find(a=>a.spieler===offen.k)):''}</div>`; }).join('');
+          ${offen&&offen.t===t.id?frage(t,K.find(k=>k.id===offen.k),R.find(a=>a.spieler===offen.k)):''}</div>`; }).join('')+DS;
       document.querySelectorAll('[data-t][data-k]').forEach(b=>b.onclick=()=>{ offen={t:b.dataset.t,k:b.dataset.k,a:null,g:null}; zeigen(); const q=document.getElementById('tpq'); if(q)q.scrollIntoView({behavior:'smooth',block:'nearest'}); });
       const q=document.getElementById('tpq'); if(!q)return;
       q.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{ offen.a=b.dataset.a; if(offen.a!=='nein'){ senden(); } else zeigen(); });
