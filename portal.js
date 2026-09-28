@@ -169,5 +169,52 @@
   }
   window.addEventListener('hashchange',()=>location.reload());
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&S)load(); });
-  load();
+  if(hp.get('m'))teamAbst(hp.get('m')); else load();
+
+  /* Zweite und Jugend: Zu- und Absagen per Gruppenlink (…/team.html#m=<code>). Eltern tippen den Namen des Kindes. */
+  function teamAbst(tok){
+    const TG={krank:'Krank',verletzt:'Verletzt',urlaub:'Urlaub',schule:'Schule',privat:'Privat'};
+    const TA={training:'Training',spiel:'Spiel',turnier:'Turnier',sonst:'Termin'};
+    let T=null, offen=null, meine=[]; try{ meine=JSON.parse(ls.get('tp_kids')||'[]'); }catch(e){}
+    const h=document.querySelector('header h1'), hs=document.querySelector('header p'), ft=document.querySelector('footer');
+    if(ft)ft.textContent='Nur für die Mannschaft · keine Anmeldung, keine Nummern, keine Werbung';
+    async function laden(){
+      if(!/^[A-Za-z0-9]{20,40}$/.test(tok)){ app.innerHTML='<div class="card err empty"><h2>Link ungültig</h2></div>'; return; }
+      try{ T=await rpc('tp_state',{p_token:tok}); zeigen(); }
+      catch(e){ app.innerHTML=`<div class="card err empty"><h2>Link nicht verfügbar</h2><p class="note">${esc(e.message)}</p><p class="note">Bitte beim Trainer den aktuellen Link erfragen.</p></div>`; }
+    }
+    function zeigen(){
+      if(h)h.textContent=T.team.kurz; if(hs)hs.textContent=T.team.name+' · Zu- und Absagen';
+      document.title=T.team.name+' · SV/BSC Mörlenbach';
+      const K=T.kinder||[], A=T.antworten||[], mk=new Set(meine.filter(id=>K.some(k=>k.id===id)));
+      if(!T.termine.length){ app.innerHTML='<div class="card empty"><h2>Gerade nichts offen</h2><p class="note">In den nächsten zwei Wochen steht kein Termin an.</p></div>'; return; }
+      app.innerHTML=`<p class="note" style="margin:0 0 12px">Tippe auf den Namen deines Kindes und sag zu oder ab. Das Handy merkt sich dein Kind.</p>`+T.termine.map(t=>{
+        const R=A.filter(a=>a.termin===t.id), ja=R.filter(a=>a.antwort==='ja').length, nein=R.filter(a=>a.antwort==='nein').length, vl=R.filter(a=>a.antwort==='vielleicht').length;
+        const an=id=>(R.find(a=>a.spieler===id)||{}).antwort||'';
+        const kids=[...K].sort((a,b)=>(mk.has(b.id)-mk.has(a.id))||a.name.localeCompare(b.name,'de'));
+        return `<div class="card"><span class="pill${t.art==='spiel'||t.art==='turnier'?' spiel':''}">${esc(TA[t.art]||'Termin')}</span>
+          <h2>${esc(wd(t.datum))}${t.zeit?' · '+esc(t.zeit):''}</h2><div class="meta">${[t.gegner?(t.heim===false?'bei ':'gegen ')+t.gegner:'',t.titel,t.ort].filter(Boolean).map(esc).join(' · ')}</div>
+          <div class="cnt"><span><b>${ja}</b> dabei</span><span><b>${nein}</b> nicht dabei</span>${vl?`<span><b>${vl}</b> vielleicht</span>`:''}<span><b>${K.length-R.length}</b> offen</span></div>
+          <div class="who">${kids.map(k=>{ const a=an(k.id); return `<button data-t="${esc(t.id)}" data-k="${esc(k.id)}" style="padding:8px 11px;border-radius:999px;font-size:13.5px;font-weight:${mk.has(k.id)?800:600};border:1px solid ${mk.has(k.id)?'rgba(91,155,255,.6)':'var(--line)'}" class="${a==='ja'?'ok':a==='nein'?'bad':a?'mid':''}">${a==='ja'?'✓ ':a==='nein'?'✗ ':a?'? ':''}${esc(k.name)}</button>`; }).join('')}</div>
+          ${offen&&offen.t===t.id?frage(t,K.find(k=>k.id===offen.k),R.find(a=>a.spieler===offen.k)):''}</div>`; }).join('');
+      document.querySelectorAll('[data-t][data-k]').forEach(b=>b.onclick=()=>{ offen={t:b.dataset.t,k:b.dataset.k,a:null,g:null}; zeigen(); const q=document.getElementById('tpq'); if(q)q.scrollIntoView({behavior:'smooth',block:'nearest'}); });
+      const q=document.getElementById('tpq'); if(!q)return;
+      q.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{ offen.a=b.dataset.a; if(offen.a!=='nein'){ senden(); } else zeigen(); });
+      q.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ offen.g=b.dataset.g; senden(); });
+      const x=q.querySelector('[data-x]'); if(x)x.onclick=()=>{ offen=null; zeigen(); };
+    }
+    function frage(t,k,alt){ if(!k)return '';
+      return `<div id="tpq" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"><b style="font-size:16px">Kommt ${esc(k.name.split(' ')[0])}?</b>${alt?`<div class="note" style="margin-top:4px">Bisher: ${alt.antwort==='ja'?'dabei':alt.antwort==='nein'?'nicht dabei':'vielleicht'}</div>`:''}
+        <div class="ans"><button class="zu${offen.a==='ja'?' on':''}" data-a="ja"><span>👍</span>Ja, dabei</button><button class="ab${offen.a==='nein'?' on':''}" data-a="nein"><span>👎</span>Nein</button></div>
+        <div class="ans" style="grid-template-columns:1fr 1fr;margin-top:8px"><button class="vllt${offen.a==='vielleicht'?' on':''}" data-a="vielleicht" style="padding:10px">Weiß noch nicht</button><button data-x style="padding:10px">Abbrechen</button></div>
+        ${offen.a==='nein'?`<div class="note">Warum? (hilft dem Trainer)</div><div class="why">${Object.entries(TG).map(([g,l])=>`<button data-g="${g}">${l}</button>`).join('')}<button data-g="ohne">Ohne Angabe</button></div>`:''}</div>`; }
+    async function senden(){ if(busy)return; busy=true;
+      try{ await rpc('tp_vote',{p_token:tok,p_termin:offen.t,p_spieler:offen.k,p_antwort:offen.a,p_grund:offen.a==='nein'?(offen.g||'ohne'):null});
+        if(!meine.includes(offen.k)){ meine.push(offen.k); ls.set('tp_kids',JSON.stringify(meine.slice(-4))); }
+        toast(offen.a==='ja'?'✓ Zugesagt, danke!':offen.a==='nein'?'✓ Abgesagt, danke für die Info':'✓ Gespeichert'); offen=null; busy=false; await laden(); }
+      catch(e){ busy=false; toast('⚠️ '+e.message); }
+    }
+    laden();
+    document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&T&&!offen)laden(); });
+  }
 })();
