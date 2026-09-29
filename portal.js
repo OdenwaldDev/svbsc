@@ -169,8 +169,81 @@
   }
   window.addEventListener('hashchange',()=>location.reload());
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&S)load(); });
-  if(hp.get('b'))bestaetigen(hp.get('b')); else if(hp.get('m'))teamAbst(hp.get('m')); else load();
+  if(hp.get('h'))helfer(hp.get('h')); else if(hp.get('b'))bestaetigen(hp.get('b')); else if(hp.get('m'))teamAbst(hp.get('m')); else load();
 
+
+  /* Checkliste für Helfer ohne App (…/team.html#h=<code>): abhaken, Aufgabe übernehmen, Absprache, Foto in den Vereins-Drive */
+  function helfer(tok){
+    const h=document.querySelector('header h1'), hs=document.querySelector('header p'), ft=document.querySelector('footer');
+    if(ft)ft.textContent='Nur für diese Checkliste · keine Anmeldung · der Link läuft zwei Wochen nach dem Termin ab';
+    const st=document.createElement('style'); st.textContent=`header{z-index:30;} .hk-p{display:flex;align-items:center;gap:12px;padding:12px;margin-bottom:8px;border-radius:16px;background:var(--s1);border:1px solid var(--line);}
+      .hk-p.mein{border-color:rgba(34,197,94,.45);} .hk-p.hk-done{opacity:.6;} .hk-p.hk-done b{text-decoration:line-through;}
+      .hk-h{flex:none;width:48px;height:48px;border-radius:50%;border:2.5px solid rgba(162,172,191,.55);background:none;display:grid;place-items:center;font-size:24px;color:#fff;cursor:pointer;transition:background .25s,border-color .25s,transform .15s;}
+      .hk-p.hk-done .hk-h{background:var(--ok);border-color:var(--ok);} .hk-h:active{transform:scale(.9);}
+      .hk-t{flex:1;min-width:0;} .hk-t b{display:block;font-size:17px;line-height:1.3;} .hk-t small{display:block;margin-top:3px;font-size:14px;color:var(--ink2);}
+      .hk-ub{margin-top:6px;padding:7px 12px;border-radius:999px;border:1px solid var(--brand2);background:none;color:var(--brand2);font-size:14px;font-weight:700;cursor:pointer;}
+      .hk-g{margin:18px 4px 8px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);font-weight:800;}
+      .hk-m{max-width:85%;padding:9px 12px;border-radius:14px;background:var(--s2);margin-bottom:8px;} .hk-m.ich{margin-left:auto;background:rgba(47,107,255,.22);}
+      .hk-m b{font-size:13px;color:var(--brand2);} .hk-m p{font-size:16px;margin-top:2px;white-space:pre-wrap;word-break:break-word;}
+      .hk-send{display:flex;gap:8px;margin-top:10px;} .hk-send input{flex:1;min-width:0;min-height:50px;padding:0 12px;font-size:16.5px;border-radius:12px;border:1.5px solid var(--line);background:var(--s1);color:var(--ink);}
+      .hk-send button,.hk-send label{min-width:50px;min-height:50px;border-radius:12px;border:0;background:var(--brand);color:#fff;font-size:20px;display:grid;place-items:center;cursor:pointer;}
+      .hk-send label{background:var(--s2);border:1px solid var(--line);}
+      .hk-s{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);} .hk-s>div{flex:1;min-width:0;} .hk-s b{font-size:16px;} .hk-s small{display:block;color:var(--ink2);font-size:14px;margin-top:2px;}
+      .hk-s.mein b{color:var(--ok);} .hk-sb{min-height:44px;padding:0 14px;border-radius:12px;border:0;background:var(--brand);color:#fff;font-weight:700;font-size:15px;cursor:pointer;} .hk-sb.raus{background:var(--s2);color:var(--ink2);border:1px solid var(--line);}
+      .hk-voll{color:var(--ink3);font-size:14px;} .hk-num{display:flex;flex-direction:column;gap:6px;} .hk-num a{display:flex;justify-content:space-between;padding:10px 12px;border-radius:12px;background:var(--s2);color:var(--ink);text-decoration:none;font-size:15px;}
+      .hk-ring{font-size:15px;color:var(--ink2);margin-top:8px;} .hk-bar{height:10px;border-radius:99px;background:var(--s3);overflow:hidden;margin-top:8px;} .hk-bar i{display:block;height:100%;background:var(--ok);transition:width .6s;}`;
+    document.head.appendChild(st);
+    let I=null;
+    const GR=[['vorher','Vorher'],['spieltag','Am Tag'],['danach','Danach']];
+    const uhr=ts=>{ try{ return ts?new Date(ts).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'?'; }catch(e){ return '?'; } };
+    const wann=(ts,d)=>{ if(!ts)return ''; try{ const x=new Date(ts), dd=x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0'); const u=x.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+' Uhr';
+      return dd===d?u:x.toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'})+', '+u; }catch(e){ return ''; } };
+    async function laden(still){
+      if(!/^[A-Za-z0-9]{24,40}$/.test(tok)){ app.innerHTML='<div class="card err empty"><h2>Link ungültig</h2></div>'; return; }
+      try{ const n=await rpc('orga_link_info',{p_token:tok}); if(!n)throw new Error('Der Link ist abgelaufen oder ungültig. Bitte beim Verantwortlichen nachfragen.');
+        if(still&&I&&JSON.stringify(n.punkte)===JSON.stringify(I.punkte)&&(n.chat||[]).length===(I.chat||[]).length)return; I=n; zeigen(); }
+      catch(e){ if(!still)app.innerHTML=`<div class="card err empty"><h2>Link nicht verfügbar</h2><p class="note">${esc(e.message)}</p></div>`; }
+    }
+    function zeigen(){
+      if(h)h.textContent=I.titel; if(hs)hs.textContent=wd(I.datum)+(I.zeit?' · '+I.zeit+' Uhr':'')+(I.ort?' · '+I.ort:'');
+      document.title=I.titel+' · SV/BSC Mörlenbach';
+      const P=I.punkte||[], f=P.filter(p=>p.e).length, ich=String(I.ich||'').toLowerCase(), mein=p=>(p.wn||'').toLowerCase()===ich;
+      const zeile=p=>`<div class="hk-p${p.e?' hk-done':''}${mein(p)?' mein':''}"><button class="hk-h" data-hk="${esc(p.id)}" aria-label="${p.e?'Wieder offen':'Erledigt'}">${p.e?'✓':''}</button>
+        <div class="hk-t"><b>${esc(p.t)}</b><small>${[wann(p.f,I.datum),p.wn?(mein(p)?'Du':p.wn):'noch frei',p.e&&p.ev?'✓ '+p.ev:''].filter(Boolean).map(esc).join(' · ')}</small>
+        ${!p.e&&!p.wn?`<button class="hk-ub" data-hu="${esc(p.id)}">Mache ich</button>`:''}</div></div>`;
+      const meine=P.filter(p=>mein(p)&&!p.e);
+      app.innerHTML=`<div class="card hero"><span class="pill">Hallo ${esc(I.ich)}</span><h2 style="margin:12px 0 4px">${esc(I.titel)}</h2>
+          <div class="hk-ring">${f} von ${P.length} erledigt${f===P.length&&P.length?' 🎉':''}</div><div class="hk-bar"><i style="width:${P.length?Math.round(f/P.length*100):0}%"></i></div>
+          <p class="note" style="margin-top:10px">${meine.length?`Deine Aufgabe${meine.length>1?'n':''}: <b>${meine.map(p=>esc(p.t)).join(', ')}</b>. `:''}Tippe auf den Kreis, wenn etwas erledigt ist. Mit „Mache ich“ übernimmst du eine freie Aufgabe.</p></div>
+        ${GR.map(([g,t])=>{ const X=P.filter(p=>p.g===g&&!p.e); return X.length?`<div class="hk-g">${t}</div>`+X.map(zeile).join(''):''; }).join('')}
+        ${f?`<div class="hk-g">Erledigt</div>`+P.filter(p=>p.e).map(zeile).join(''):''}
+        ${(I.schichten||[]).length?`<div class="card" style="margin-top:16px"><h3 style="font-size:17px;margin-bottom:6px">👥 Schichtplan</h3>
+          <p class="note" style="margin-bottom:8px">Bitte 15 Minuten vor Schichtbeginn an der Station sein und die Übergabe persönlich machen. Wer ausfällt, organisiert selbst Ersatz und sagt dem Verantwortlichen Bescheid.</p>
+          ${I.schichten.map(x=>{ const H=x.h||[], mein=H.some(y=>(y.n||'').toLowerCase()===ich), frei=x.p-H.length;
+            return `<div class="hk-s${mein?' mein':''}"><div><b>${esc(x.st)}</b><small>${esc(uhr(x.von))}${x.bis?' bis '+esc(uhr(x.bis)):''} Uhr · ${H.length?H.map(y=>esc((y.n||'').toLowerCase()===ich?'Du':y.n)).join(', '):'noch niemand'}</small></div>
+              ${mein?`<button class="hk-sb raus" data-hs="${esc(x.id)}" data-an="0">Austragen</button>`:frei>0?`<button class="hk-sb" data-hs="${esc(x.id)}" data-an="1">Ich übernehme</button>`:'<span class="hk-voll">voll</span>'}</div>`; }).join('')}</div>`:''}
+        <div class="card" style="margin-top:16px"><h3 style="font-size:17px;margin-bottom:8px">💬 Absprache</h3><div id="hkChat">${(I.chat||[]).map(c=>`<div class="hk-m${!c.u&&c.von===I.ich?' ich':''}"><b>${esc(c.von)}</b>${c.datei&&c.text==='📎 '+c.datei.name?'':`<p>${esc(c.text)}</p>`}${c.datei&&c.datei.link?`<a href="${esc(c.datei.link)}" target="_blank" rel="noopener" style="color:var(--brand2)">📎 ${esc(c.datei.name)}</a>`:''}</div>`).join('')||'<p class="note">Noch keine Nachricht.</p>'}</div>
+          <form class="hk-send" id="hkSend" autocomplete="off">${I.drive?'<label title="Foto oder Datei">📷<input type="file" id="hkFile" accept="image/*,application/pdf" hidden></label>':''}<input id="hkIn" maxlength="1000" placeholder="Nachricht schreiben"><button type="submit" aria-label="Senden">➤</button></form></div>
+        <div class="card" style="margin-top:16px"><h3 style="font-size:17px;margin-bottom:8px">📞 Wichtige Nummern</h3><div class="hk-num"><a href="tel:112">Notruf <b>112</b></a><a href="tel:110">Polizei <b>110</b></a>${(I.nummern||[]).filter(n=>n.tel).map(n=>`<a href="tel:${esc(n.tel.replace(/[^0-9+]/g,''))}">${esc(n.t)} <b>${esc(n.tel)}</b></a>`).join('')}</div></div>`;
+      app.querySelectorAll('[data-hk]').forEach(b=>b.onclick=async()=>{ if(busy)return; busy=true; const p=P.find(x=>x.id===b.dataset.hk); b.closest('.hk-p').classList.toggle('hk-done');
+        try{ I=await rpc('orga_link_haken',{p_token:tok,p_punkt:p.id,p_erledigt:!p.e}); try{ navigator.vibrate&&navigator.vibrate(12); }catch(e){} busy=false; zeigen(); if(!p.e)toast('✓ Danke!'); }
+        catch(e){ busy=false; toast('⚠️ '+e.message); zeigen(); } });
+      app.querySelectorAll('[data-hs]').forEach(b=>b.onclick=async()=>{ if(busy)return; busy=true;
+        try{ I=await rpc('orga_link_schicht',{p_token:tok,p_schicht:b.dataset.hs,p_an:b.dataset.an==='1'}); busy=false; toast(b.dataset.an==='1'?'✓ Danke, du bist eingetragen':'✓ Ausgetragen'); zeigen(); }catch(e){ busy=false; toast('⚠️ '+e.message); } });
+      app.querySelectorAll('[data-hu]').forEach(b=>b.onclick=async()=>{ if(busy)return; busy=true;
+        try{ I=await rpc('orga_link_uebernehmen',{p_token:tok,p_punkt:b.dataset.hu}); busy=false; toast('✓ Übernommen'); zeigen(); }catch(e){ busy=false; toast('⚠️ '+e.message); } });
+      app.querySelector('#hkSend').onsubmit=async e=>{ e.preventDefault(); const i=app.querySelector('#hkIn'), t=i.value.trim(); if(!t||busy)return; busy=true;
+        try{ I=await rpc('orga_link_chat',{p_token:tok,p_text:t}); busy=false; zeigen(); const c=document.getElementById('hkChat'); if(c)c.lastElementChild&&c.lastElementChild.scrollIntoView({block:'nearest'}); }catch(x){ busy=false; toast('⚠️ '+x.message); } };
+      const fi=app.querySelector('#hkFile'); if(fi)fi.onchange=async()=>{ const f=fi.files&&fi.files[0]; if(!f)return; if(f.size>15*1024*1024){ toast('⚠️ Höchstens 15 MB'); return; }
+        toast('⏳ Lädt hoch …');
+        try{ const data=await new Promise((ok,no)=>{ const r=new FileReader(); r.onload=()=>ok(String(r.result).split(',')[1]||''); r.onerror=no; r.readAsDataURL(f); });
+          const r=await fetch(C.url+'/functions/v1/orga-datei',{method:'POST',headers:{'Content-Type':'application/json',apikey:C.anon,Authorization:'Bearer '+C.anon},body:JSON.stringify({token:tok,name:f.name,mime:f.type,data,text:app.querySelector('#hkIn').value||''})});
+          const j=await r.json().catch(()=>null); if(!j||!j.ok)throw new Error((j&&j.error)||'Hochladen hat nicht geklappt'); toast('✓ Im Vereins-Drive abgelegt'); await laden(); }
+        catch(x){ toast('⚠️ '+x.message); } };
+    }
+    laden();
+    setInterval(()=>{ if(document.visibilityState==='visible'&&I&&document.activeElement&&document.activeElement.id!=='hkIn')laden(true); },12000);
+  }
   /* A-Jugend: Spieler bestätigen sich selbst (…/team.html#b=<code>) oder lassen sich löschen. Nur Name, keine Kontaktdaten. */
   function bestaetigen(tok){
     const h=document.querySelector('header h1'), hs=document.querySelector('header p'), ft=document.querySelector('footer');
