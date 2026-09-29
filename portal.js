@@ -169,7 +169,37 @@
   }
   window.addEventListener('hashchange',()=>location.reload());
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&S)load(); });
-  if(hp.get('m'))teamAbst(hp.get('m')); else load();
+  if(hp.get('b'))bestaetigen(hp.get('b')); else if(hp.get('m'))teamAbst(hp.get('m')); else load();
+
+  /* A-Jugend: Spieler bestätigen sich selbst (…/team.html#b=<code>) oder lassen sich löschen. Nur Name, keine Kontaktdaten. */
+  function bestaetigen(tok){
+    const h=document.querySelector('header h1'), hs=document.querySelector('header p'), ft=document.querySelector('footer');
+    if(h)h.textContent='SV/BSC Mörlenbach'; if(hs)hs.textContent='Bist du das?'; if(ft)ft.textContent='Nur Vor- und Nachname · keine Nummern, keine Fotos, keine Werbung';
+    let I=null, fertig=null;
+    async function laden(){
+      if(!/^[A-Za-z0-9]{24,40}$/.test(tok)){ app.innerHTML='<div class="card err empty"><h2>Link ungültig</h2></div>'; return; }
+      try{ I=await rpc('bestaetigung_info',{p_token:tok}); if(!I)throw new Error('Der Link ist abgelaufen oder ungültig. Bitte beim Trainer nachfragen.'); zeigen(); }
+      catch(e){ app.innerHTML=`<div class="card err empty"><h2>Link nicht verfügbar</h2><p class="note">${esc(e.message)}</p></div>`; }
+    }
+    function zeigen(){
+      if(fertig==='geloescht'){ app.innerHTML='<div class="card empty"><h2>Gelöscht</h2><p class="note">Dein Name ist aus der App entfernt. Danke für die Rückmeldung.</p></div>'; return; }
+      const teams=(I.teams||[]).join(', ');
+      app.innerHTML=`<div class="card hero"><span class="pill">${I.bestaetigt||fertig==='bestaetigt'?'✓ bestätigt':'unbestätigt'}</span><h2 style="margin:12px 0 4px">${esc(I.vorname)} ${esc(I.nachname)}</h2>
+        <div class="meta">${teams?esc(teams)+' · ':''}SV/BSC Mörlenbach</div>
+        <p class="note" style="line-height:1.55;margin-top:12px">Dein Trainer hat dich aus der Kaderliste bei fussball.de in die Vereins-App übernommen. Gespeichert ist nur dein Vor- und Nachname und in welcher Mannschaft du spielst. Keine Nummer, keine Mail, kein Foto.</p>
+        ${I.bestaetigt||fertig==='bestaetigt'?'<p class="note"><b>Danke, du bist bestätigt.</b> Willst du doch nicht in der App stehen, kannst du dich hier jederzeit löschen lassen.</p>':''}
+        <div class="ans">${I.bestaetigt||fertig==='bestaetigt'?'':`<button class="zu" data-b="ja"><span>👍</span>Ja, das bin ich</button>`}<button class="ab" data-b="loeschen"><span>🗑️</span>Bitte löschen</button></div>
+        <div id="bq"></div></div>`;
+      app.querySelectorAll('[data-b]').forEach(b=>b.onclick=()=>{ if(b.dataset.b==='ja')return senden('ja');
+        document.getElementById('bq').innerHTML=`<p class="note" style="margin-top:12px">Wirklich löschen? Dein Name, die Mannschaft und alles, was der Trainer zu dir eingetragen hat, werden entfernt.</p><div class="ans"><button class="ab" data-bj>Ja, löschen</button><button data-bn>Abbrechen</button></div>`;
+        app.querySelector('[data-bj]').onclick=()=>senden('loeschen'); app.querySelector('[data-bn]').onclick=()=>{ document.getElementById('bq').innerHTML=''; }; });
+    }
+    async function senden(a){ if(busy)return; busy=true;
+      try{ fertig=await rpc('bestaetigung_antwort',{p_token:tok,p_antwort:a}); busy=false; toast(fertig==='geloescht'?'✓ Gelöscht':'✓ Danke, bestätigt'); if(fertig==='bestaetigt')I.bestaetigt=true; zeigen(); }
+      catch(e){ busy=false; toast('⚠️ '+e.message); }
+    }
+    laden();
+  }
 
   /* Zweite und Jugend: Zu- und Absagen per Gruppenlink (…/team.html#m=<code>). Eltern tippen den Namen des Kindes. */
   function teamAbst(tok){
