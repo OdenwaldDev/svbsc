@@ -169,7 +169,7 @@
   }
   window.addEventListener('hashchange',()=>location.reload());
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&S)load(); });
-  if(hp.get('h'))helfer(hp.get('h')); else if(hp.get('b'))bestaetigen(hp.get('b')); else if(hp.get('m'))teamAbst(hp.get('m')); else load();
+  if(hp.has('mitmachen'))mitmachen(hp.get('mitmachen')||'helfer'); else if(hp.get('h'))helfer(hp.get('h')); else if(hp.get('b'))bestaetigen(hp.get('b')); else if(hp.get('m'))teamAbst(hp.get('m')); else load();
 
 
   /* Checkliste für Helfer ohne App (…/team.html#h=<code>): abhaken, Aufgabe übernehmen, Absprache, Foto in den Vereins-Drive */
@@ -323,5 +323,58 @@
     }
     laden();
     document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&T&&!offen)laden(); });
+  }
+
+  /* Helferpool (…/#mitmachen=<code>, QR-Code bei der Jahreshauptversammlung): erst anmelden, dann in die WhatsApp-Gruppe.
+     Der Gruppenlink kommt erst nach der Anmeldung vom Server, er steht nicht im Code. */
+  async function mitmachen(code){
+    code=String(code||'helfer').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,20)||'helfer';
+    const h=document.querySelector('header h1'), hs=document.querySelector('header p'); if(h)h.textContent='Mitmachen'; if(hs)hs.textContent='SV/BSC Mörlenbach · Fußball';
+    document.title='Helferpool · SV/BSC Mörlenbach'; const ft=document.querySelector('footer'); if(ft)ft.textContent='SV Mörlenbach 1896 e.V. · Abteilung Fußball · sv-moerlenbach.de';
+    const st=document.createElement('style'); st.textContent=`.mm-f label{display:block;font-size:13px;font-weight:700;color:var(--ink2);margin:14px 0 0}.mm-f .txt{margin-top:6px;font-size:17px}
+      .mm-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.mm-ch{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.mm-ch button{font:inherit;font-size:14.5px;padding:10px 13px;border-radius:999px;border:1px solid var(--line);background:var(--s3);color:var(--ink);cursor:pointer}
+      .mm-ch button.on{background:rgba(59,120,255,.22);border-color:rgba(91,155,255,.7);color:#fff}.mm-f .mm-ok{display:flex;gap:10px;align-items:flex-start;margin-top:18px;font-size:14px;font-weight:400;line-height:1.45;color:var(--ink2)}
+      .mm-f .mm-ok input{width:24px;height:24px;flex:none;margin-top:1px}.mm-hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}.mm-go{margin-top:18px}
+      .mm-wa{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-top:16px;padding:18px;border-radius:16px;background:linear-gradient(180deg,#25d366,#128c7e);color:#fff;font-weight:800;font-size:18px;text-decoration:none;box-shadow:0 10px 24px rgba(37,211,102,.25)}
+      .mm-steps{display:grid;gap:8px;margin-top:14px;text-align:left}.mm-steps div{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;background:var(--s3);font-size:14.5px}.mm-steps b{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#3b78ff;color:#fff;font-size:13px}
+      .mm-err{color:#fca5a5;font-size:14px;margin-top:10px;min-height:1em}`;
+    document.head.appendChild(st);
+    let info=null; try{ info=await rpc('helfer_info',{p_code:code}); }catch(e){}
+    if(!info||!info.aktiv){ app.innerHTML=`<div class="card err empty"><h2>Anmeldung geschlossen</h2><p class="note">Diese Anmeldung ist nicht mehr offen. Sprich uns gern direkt an oder schreib an fussball@sv-moerlenbach.de.</p></div>`; return; }
+    const I=[['kasse','💶 Kasse'],['ausschank','🍺 Ausschank'],['grill','🌭 Grill'],['kuchen','🍰 Kaffee & Kuchen'],['aufbau','🛠️ Auf- und Abbau'],['fahrdienst','🚗 Fahrdienst'],['handwerk','🔧 Handwerk'],['medien','📸 Fotos & Social Media'],['jugend','⚽ Jugend & Turniere'],['ueberall','🙌 Überall, wo es brennt']];
+    const gewaehlt=new Set();
+    let fertig=null; try{ fertig=JSON.parse(ls.get('mm_fertig_'+code)||'null'); }catch(e){}
+    if(fertig&&fertig.wa)return danke(fertig);
+    app.innerHTML=`<div class="card hero"><span class="pill">${esc(info.titel)}</span><h2 style="margin:12px 0 6px">Werde Teil unseres Helferpools</h2>
+        <p class="note" style="margin-top:0">Ohne Helfer kein Spieltag, keine Kerwe, kein Turnier. Trag dich kurz ein, danach kommst du direkt in unsere WhatsApp-Gruppe „Unterstützer und Helferpool“.</p>
+        <div class="mm-steps"><div><b>1</b>Name und Handynummer eintragen</div><div><b>2</b>Auf „Anmelden“ tippen</div><div><b>3</b>Der WhatsApp-Gruppe beitreten</div></div></div>
+      <form class="card mm-f" id="mmF" autocomplete="on" novalidate>
+        <div class="mm-2"><div><label for="mmV">Vorname</label><input class="txt" id="mmV" autocomplete="given-name" maxlength="60" required></div><div><label for="mmN">Nachname</label><input class="txt" id="mmN" autocomplete="family-name" maxlength="60" required></div></div>
+        <label for="mmG">Geburtsdatum</label><input class="txt" id="mmG" type="date" autocomplete="bday" required max="${new Date().toISOString().slice(0,10)}">
+        <label for="mmH">Handynummer (die du für WhatsApp nutzt)</label><input class="txt" id="mmH" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" placeholder="0171 2345678" required>
+        <label for="mmE">E-Mail (freiwillig)</label><input class="txt" id="mmE" type="email" inputmode="email" autocomplete="email" maxlength="120" placeholder="name@beispiel.de">
+        <label>Wobei hilfst du gern? (freiwillig, mehrere möglich)</label><div class="mm-ch">${I.map(([k,l])=>`<button type="button" data-mi="${k}">${l}</button>`).join('')}</div>
+        <div class="mm-hp" aria-hidden="true"><label for="mmW">Website</label><input id="mmW" tabindex="-1" autocomplete="off"></div>
+        <label class="mm-ok"><input type="checkbox" id="mmOk"><span>Ich bin einverstanden, dass die Fußballabteilung des SV Mörlenbach 1896 e.V. meine Angaben speichert, um mich für Helfereinsätze zu kontaktieren und in die WhatsApp-Gruppe aufzunehmen. Die Angaben sehen nur die Verantwortlichen im Verein, sie werden nicht weitergegeben. Widerruf jederzeit per Mail an fussball@sv-moerlenbach.de, dann löschen wir alles.</span></label>
+        <p class="mm-err" id="mmErr"></p>
+        <button class="pay mm-go" type="submit" id="mmGo">Anmelden</button></form>`;
+    app.querySelectorAll('[data-mi]').forEach(b=>b.onclick=()=>{ const k=b.dataset.mi; if(gewaehlt.has(k))gewaehlt.delete(k); else gewaehlt.add(k); b.classList.toggle('on',gewaehlt.has(k)); });
+    let busy=false;
+    $('#mmF').onsubmit=async e=>{ e.preventDefault(); if(busy)return; const err=$('#mmErr'); err.textContent='';
+      const d={vorname:$('#mmV').value.trim(),nachname:$('#mmN').value.trim(),geburtsdatum:$('#mmG').value,handy:$('#mmH').value.trim(),email:$('#mmE').value.trim(),interessen:[...gewaehlt],hp:$('#mmW').value,einwilligung:$('#mmOk').checked};
+      if(!d.vorname||!d.nachname){ err.textContent='Bitte Vor- und Nachnamen eintragen.'; return; }
+      if(!d.geburtsdatum){ err.textContent='Bitte das Geburtsdatum eintragen.'; return; }
+      if(d.handy.replace(/[^0-9]/g,'').length<7){ err.textContent='Bitte deine Handynummer eintragen.'; return; }
+      if(!d.einwilligung){ err.textContent='Bitte unten der Speicherung zustimmen, sonst dürfen wir dich nicht aufnehmen.'; return; }
+      busy=true; const b=$('#mmGo'); b.disabled=true; b.textContent='Wird gespeichert …';
+      try{ const r=await rpc('helfer_anmelden',{p_code:code,p:d}); const f={vorname:r.vorname,wa:r.wa_link,titel:r.titel}; ls.set('mm_fertig_'+code,JSON.stringify(f)); danke(f); }
+      catch(x){ busy=false; b.disabled=false; b.textContent='Anmelden'; err.textContent=x.message||'Das hat nicht geklappt. Bitte nochmal versuchen.'; } };
+    function danke(f){
+      app.innerHTML=`<div class="card hero"><div style="font-size:52px;line-height:1">🙌</div><h2 style="margin:10px 0 6px">Danke, ${esc(f.vorname)}!</h2>
+          <p class="note" style="margin-top:0">Du bist im Helferpool eingetragen. Jetzt nur noch der WhatsApp-Gruppe beitreten, dort kommen alle Infos zu den nächsten Einsätzen.</p>
+          ${f.wa?`<a class="mm-wa" id="mmWa" href="${esc(f.wa)}" rel="noopener">💬 Jetzt der WhatsApp-Gruppe beitreten</a>`:'<p class="note">Wir nehmen dich in die Gruppe auf und melden uns.</p>'}
+          <p class="note">Beitreten mit derselben Handynummer, die du eingetragen hast. Falsch vertippt? <a href="#" id="mmNeu" style="color:inherit">Nochmal eintragen</a></p></div>`;
+      const n=$('#mmNeu'); if(n)n.onclick=ev=>{ ev.preventDefault(); ls.del('mm_fertig_'+code); location.reload(); };
+    }
   }
 })();
